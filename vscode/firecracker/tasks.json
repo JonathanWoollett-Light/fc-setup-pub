@@ -1,0 +1,24 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "clean_socket",
+            "type": "shell",
+            "command": "rm -f /home/ec2-user/alsardan/run/api.socket",
+        },
+        {
+            "label": "kvm_perms",
+            "type": "shell",
+            "command": "sudo setfacl -m u:${USER}:rw /dev/kvm",
+        },
+        {
+            "label": "fc_prereq",
+            "dependsOn":[
+                "clean_socket",
+                "kvm_perms"
+            ]
+        }
+    ]
+}
