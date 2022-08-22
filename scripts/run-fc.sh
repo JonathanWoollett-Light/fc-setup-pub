@@ -1,7 +1,7 @@
 #!/bin/bash -e
 SB_ID="${1:-0}" # Default to sb_id=0
 
-FC_BIN="/home/ec2-user/alsardan/src/firecracker/build/cargo_target/x86_64-unknown-linux-musl/debug/firecracker"
+FC_BIN="/home/ec2-user/alsardan/bin/release-v1.1.1-x86_64/firecracker-v1.1.1-x86_64"
 API_SOCKET="/home/ec2-user/alsardan/run/api.socket"
 
 #metricsfile="$PWD/output/fc-sb${SB_ID}-metrics"

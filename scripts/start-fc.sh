@@ -4,11 +4,7 @@ SB_ID="${1:-0}" # Default to sb_id=0
 ROOTFS="/home/ec2-user/alsardan/rootfs/bionic.rootfs.ext4"
 KERNEL="/home/ec2-user/alsardan/rootfs/vmlinux.bin"
 
-# BDF of the T4 GPU we plan to attach
-# Before starting FC you need to run ./vfio-bind.sh <BDF>
-# GPU="0000:18:00.0"
-
-# TAP_DEV="tap0"
+TAP_DEV="tap0"
 
 KERNEL_BOOT_ARGS="console=ttyS0 reboot=k panic=1 ipv6.disable=1 i8042.nokbd 8250.nr_uarts=1 random.trust_cpu=on"
 
@@ -59,27 +55,28 @@ touch $LOGFILE
 #rm -f $logfile $metricsfile
 #touch $logfile $metricsfile
 
-#FC_IP="172.16.0.2"
-#TAP_IP="172.16.0.1"
-#FC_MAC="02:FC:00:00:00:02"
-#MASK_SHORT="/30"
+FC_IP="172.16.0.2"
+TAP_IP="172.16.0.1"
+FC_MAC="06:00:AC:10:00:02"
+MASK_SHORT="/30"
 
-#ip link del "$TAP_DEV" 2> /dev/null || true
-#ip tuntap add dev "$TAP_DEV" mode tap
-#ip addr add "${TAP_IP}${MASK_SHORT}" dev "$TAP_DEV"
-#ip link set dev "$TAP_DEV" up
+echo "Setting up network interfaces"
+sudo ip link del "$TAP_DEV" 2> /dev/null || true
+sudo ip tuntap add dev "$TAP_DEV" mode tap
+sudo ip addr add "${TAP_IP}${MASK_SHORT}" dev "$TAP_DEV"
+sudo ip link set dev "$TAP_DEV" up
 
 # Setup ip forwarding
-#sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
-#echo "Remove any old NAT rules"
-#iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
-#iptables -D FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-#iptables -D FORWARD -i tap0 -o eth0 -j ACCEPT
+sudo sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
+echo "Remove any old NAT rules"
+sudo iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE || true
+sudo iptables -D FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || true
+sudo iptables -D FORWARD -i tap0 -o eth0 -j ACCEPT || true
 
 #echo "Insert rules to enable Internet access for the microVM"
-#sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-#sudo iptables -I FORWARD 1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-#sudo iptables -I FORWARD 1 -i tap0 -o eth0 -j ACCEPT
+sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+sudo iptables -I FORWARD 1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+sudo iptables -I FORWARD 1 -i tap0 -o eth0 -j ACCEPT
 
 # Start Firecracker API server
 #rm -f "$API_SOCKET"
@@ -95,7 +92,8 @@ done
 curl_put '/machine-config' <<EOF
 {
   "vcpu_count": 2,
-  "mem_size_mib": 1024
+  "mem_size_mib": 128,
+  "cpu_template": "T2S"
 }
 EOF
 
@@ -121,6 +119,35 @@ curl_put '/logger' <<EOF
     "level": "Debug",
     "show_level": true,
     "show_log_origin": true
+}
+EOF
+
+curl_put '/network-interfaces/net1' <<EOF
+{
+  "iface_id": "net1",
+  "guest_mac": "$FC_MAC",
+  "host_dev_name": "$TAP_DEV"
+}
+EOF
+
+# "version": "V1"
+curl_put '/mmds/config' <<EOF
+{
+  "version": "V1",
+  "network_interfaces": [
+   "net0"
+  ]
+}
+EOF
+
+curl_put '/mmds' <<EOF
+{
+  "latest": {
+    "meta-data": {
+      "ami-id": "ami-87654321",
+      "reservation-id": "r-79054aef"
+    }
+  }
 }
 EOF
 
