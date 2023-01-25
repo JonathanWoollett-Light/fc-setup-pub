@@ -1,14 +1,20 @@
 #!/bin/bash -e
 SB_ID="${1:-0}" # Default to sb_id=0
 
-ROOTFS="/home/ec2-user/alsardan/rootfs/bionic.rootfs.ext4"
-KERNEL="/home/ec2-user/alsardan/rootfs/vmlinux.bin"
+wget https://s3.amazonaws.com/spec.ccfc.min/ci-artifacts/disks/x86_64/ubuntu-18.04.ext4
+wget https://s3.amazonaws.com/spec.ccfc.min/ci-artifacts/disks/x86_64/ubuntu-18.04.id_rsa
+wget https://s3.amazonaws.com/spec.ccfc.min/img/quickstart_guide/x86_64/kernels/vmlinux.bin
+
+chmod 400 ./ubuntu-18.04.id_rsa
+
+ROOTFS="/home/ec2-user/ubuntu-18.04.ext4"
+KERNEL="/home/ec2-user/vmlinux.bin"
 
 TAP_DEV="tap0"
 
 KERNEL_BOOT_ARGS="console=ttyS0 reboot=k panic=1 ipv6.disable=1 i8042.nokbd 8250.nr_uarts=1 random.trust_cpu=on"
 
-API_SOCKET="/home/ec2-user/alsardan/run/api.socket"
+API_SOCKET="/home/ec2-user/firecracker-api.socket"
 CURL=(curl --silent --show-error --unix-socket "${API_SOCKET}" --write-out "HTTP %{http_code}")
 
 curl_put() {
@@ -47,7 +53,7 @@ curl_patch() {
     fi
 }
 
-LOGFILE="/home/ec2-user/alsardan/run/firecracker.log"
+LOGFILE="/home/ec2-user/firecracker.log"
 touch $LOGFILE
 #metricsfile="$PWD/output/fc-sb${SB_ID}-metrics"
 #metricsfile="/dev/null"
@@ -89,11 +95,22 @@ while [ ! -e "$API_SOCKET" ]; do
     sleep 0.01s
 done
 
+curl_put '/logger' <<EOF
+{
+    "log_path": "${LOGFILE}",
+    "level": "Debug",
+    "show_level": true,
+    "show_log_origin": true
+}
+EOF
+
+sleep 0.015s
+
 curl_put '/machine-config' <<EOF
 {
   "vcpu_count": 2,
   "mem_size_mib": 128,
-  "cpu_template": "T2S"
+  "cpu_template": "C3"
 }
 EOF
 
@@ -113,15 +130,6 @@ curl_put '/drives/rootfs' <<EOF
 }
 EOF
 
-curl_put '/logger' <<EOF
-{
-    "log_path": "${LOGFILE}",
-    "level": "Debug",
-    "show_level": true,
-    "show_log_origin": true
-}
-EOF
-
 curl_put '/network-interfaces/net1' <<EOF
 {
   "iface_id": "net1",
@@ -130,26 +138,26 @@ curl_put '/network-interfaces/net1' <<EOF
 }
 EOF
 
-# "version": "V1"
-curl_put '/mmds/config' <<EOF
-{
-  "version": "V1",
-  "network_interfaces": [
-   "net0"
-  ]
-}
-EOF
+# # "version": "V1"
+# curl_put '/mmds/config' <<EOF
+# {
+#   "version": "V1",
+#   "network_interfaces": [
+#    "net0"
+#   ]
+# }
+# EOF
 
-curl_put '/mmds' <<EOF
-{
-  "latest": {
-    "meta-data": {
-      "ami-id": "ami-87654321",
-      "reservation-id": "r-79054aef"
-    }
-  }
-}
-EOF
+# curl_put '/mmds' <<EOF
+# {
+#   "latest": {
+#     "meta-data": {
+#       "ami-id": "ami-87654321",
+#       "reservation-id": "r-79054aef"
+#     }
+#   }
+# }
+# EOF
 
 sleep 0.015s
 
